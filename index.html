@@ -29,6 +29,7 @@ svg{width:100%;height:auto;display:block}
 .lock{color:var(--mu);font-size:0.92rem;padding:4px 0;border-bottom:1px dashed var(--bd)}
 .lock:last-of-type{border-bottom:none}
 .lock b{color:var(--tx);text-align:right}
+.hint{font-size:0.88rem;color:var(--mu);background:var(--acs);border-radius:8px;padding:6px 10px;margin:0 0 8px}
 input[type=range]{width:100%;cursor:pointer}
 .pre{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
 button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:7px 11px;border-radius:8px;cursor:pointer;transition:all .15s}
@@ -49,12 +50,14 @@ th{background:var(--acs)}
 label.chk{display:flex;gap:6px;align-items:center;margin-top:8px;cursor:pointer}
 .leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 .sub-btn{width:100%;margin:8px 0;padding:9px;font-weight:600}
+footer{margin-top:16px;color:var(--mu);font-size:.85rem;text-align:center}
+footer a{color:var(--ac)}
 </style>
 </head>
 <body>
 <main>
 <h1>SIMULASI HUKUM ARCHIMEDES</h1>
-<p class="sub">Pilih tab kelompok sesuai LKPD, atur variabel percobaan, amati hasilnya, lalu catat 4 variasi data.</p>
+<p class="sub">Pilih tab kelompok sesuai LKPD, atur variabel percobaan, amati hasilnya, lalu catat 3 variasi data.</p>
 <nav><a href="#kelompok1" id="t1">Kelompok 1</a><a href="#kelompok2" id="t2">Kelompok 2</a></nav>
 <div id="app"></div>
 <footer>
@@ -64,10 +67,10 @@ label.chk{display:flex;gap:6px;align-items:center;margin-top:8px;cursor:pointer}
 <script>
 // Konstanta percepatan gravitasi standar (m/s^2)
 var G = 9.8;
-// Batas maksimal pencatatan data di tabel sesuai LKPD (4 baris variasi)
-var MAX_ROWS = 4;
+// Batas maksimal pencatatan data di tabel (3 baris variasi)
+var MAX_ROWS = 3;
 
-// Daftar pilihan fluida beserta massa jenisnya (kg/m^3)
+// Daftar pilihan fluida beserta massa jenisnya (kg/m^3) untuk Kelompok 1
 var FLUIDS = [
   { name: "Minyak", rf: 800 },
   { name: "Air", rf: 1000 },
@@ -96,6 +99,10 @@ var REC = { k1: [], k2: [] };
 function fmt(n, d) {
   return n.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
+// Format volume (m^3): minimal 3 desimal, maksimal 4 (mis. 0,002 atau 0,0016)
+function fmtV(n) {
+  return n.toLocaleString("id-ID", { minimumFractionDigits: 3, maximumFractionDigits: 4 });
+}
 
 // Perhitungan fisika gaya apung & kondisi benda
 function calc(id) {
@@ -103,7 +110,7 @@ function calc(id) {
   var V = st.vL / 1000; // Konversi liter ke m^3
   var rb = st.m / V;    // Massa jenis benda (kg/m^3)
   var rf = st.rf;       // Massa jenis fluida (kg/m^3)
-  var W = st.m * G;     // Berat benda di udara (N)
+  var W = st.m * G;     // Berat benda (N)
   var cond, Vt, FA;
 
   if (id === "k2" && !st.submerged) {
@@ -112,12 +119,14 @@ function calc(id) {
     Vt = 0;
     FA = 0;
   } else {
-    if (rb < rf) {
-      cond = "Terapung";
-      Vt = V * (rb / rf);
-    } else if (Math.abs(rb - rf) < 0.01) {
+    // Cek melayang lebih dulu (dengan toleransi) agar tidak salah terbaca
+    // "terapung" akibat pembulatan bilangan desimal
+    if (Math.abs(rb - rf) < 0.5) {
       cond = "Melayang";
       Vt = V;
+    } else if (rb < rf) {
+      cond = "Terapung";
+      Vt = V * (rb / rf);
     } else {
       cond = "Tenggelam";
       Vt = V;
@@ -159,6 +168,16 @@ function arrow(x, len, dir, cls, lab) {
     '<text x="' + (x + 10) + '" y="' + (y2 + (dir > 0 ? 4 : 0)) + '" font-size="13" font-weight="700" fill="var(--' + cls + ')">' + lab + '</text>';
 }
 
+// Judul kolom tabel per kelompok (dipakai di tampilan dan fungsi salin)
+var COLS_HTML = {
+  k1: ["Variasi", "Massa jenis benda ρ<sub>b</sub> (kg/m³)", "Massa jenis fluida ρ<sub>f</sub> (kg/m³)", "Gaya apung F<sub>A</sub> (N)", "Berat benda W (N)", "Kondisi Benda"],
+  k2: ["Variasi", "Massa jenis fluida ρ<sub>f</sub> (kg/m³)", "Volume tercelup V<sub>t</sub> (m³)", "Gaya apung F<sub>A</sub> (N)"]
+};
+var COLS_TEXT = {
+  k1: ["Variasi", "Massa jenis benda (kg/m³)", "Massa jenis fluida (kg/m³)", "Gaya apung (N)", "Berat benda (N)", "Kondisi"],
+  k2: ["Variasi", "Massa jenis fluida (kg/m³)", "Volume tercelup (m³)", "Gaya apung (N)"]
+};
+
 // Membangun antarmuka sesuai tab kelompok
 function build(id) {
   var isK1 = (id === "k1");
@@ -174,6 +193,7 @@ function build(id) {
     }).join("");
 
     controlsHtml =
+      '<p class="hint"><b>Petunjuk:</b> pertahankan fluida dan volume benda tetap, lalu ubah massa benda (misalnya 1,6 / 2,0 / 2,4 kg pada volume 2,0 L dalam air) sampai ketiga kondisi (terapung, melayang, tenggelam) teramati.</p>' +
       '<div class="ctrl-group">' +
         '<div class="row"><span><b>1. Pilih Fluida</b> (Variabel Kontrol)</span><b id="k1-fl-val"></b></div>' +
         '<div class="pre">' + fluidBtns + '</div>' +
@@ -187,8 +207,8 @@ function build(id) {
       '<div class="row lock"><span>Percepatan gravitasi (g)</span><b>9,8 m/s²</b></div>';
   } else {
     // Kelompok 2: Pilih fluida + tombol celupkan benda seluruhnya + variabel kontrol lengkap (termasuk g)
-    var preK2 = [800, 1000, 1250, 1400].map(function (v) {
-      var names = { 800: "Minyak", 1000: "Air", 1250: "Gliserin", 1400: "Larutan Garam Pekat" };
+    var names = { 800: "Minyak", 1000: "Air", 1200: "Larutan Garam" };
+    var preK2 = [800, 1000, 1200].map(function (v) {
       return '<button type="button" class="rf-btn" data-v="' + v + '">' + names[v] + ' ' + fmt(v, 0) + '</button>';
     }).join("");
 
@@ -202,13 +222,11 @@ function build(id) {
         '<div style="font-size:0.9rem;color:var(--mu);margin-bottom:4px"><b>2. Posisi Benda Uji:</b> Pilih benda uji (4 kg; 2 L) lalu celupkan seluruhnya ke dalam fluida.</div>' +
         '<button type="button" id="btn-submerge" class="p sub-btn">Celupkan Benda Seluruhnya</button>' +
       '</div>' +
-      '<div class="row lock"><span>Benda uji (Massa & Volume)</span><b>4,0 kg &nbsp;|&nbsp; 0,002 m³ (2 L)</b></div>' +
+      '<div class="row lock"><span>Benda uji (Massa &amp; Volume)</span><b>4,0 kg &nbsp;|&nbsp; 0,002 m³ (2 L)</b></div>' +
       '<div class="row lock"><span>Percepatan gravitasi (g)</span><b>9,8 m/s²</b></div>';
   }
 
-  var cols = isK1
-    ? ["Variasi", "Massa jenis benda ρ<sub>b</sub> (kg/m³)", "Massa jenis fluida ρ<sub>f</sub> (kg/m³)", "Kondisi Benda"]
-    : ["Variasi", "Massa jenis fluida ρ<sub>f</sub> (kg/m³)", "Volume tercelup V<sub>t</sub> (m³)", "Gaya apung F<sub>A</sub> (N)"];
+  var cols = COLS_HTML[id];
 
   return '<div class="goal"><b>Tujuan:</b> ' + goal + '</div><div class="grid">' +
     '<div class="card"><h2>Bak Percobaan</h2><svg viewBox="0 0 320 300" role="img" aria-label="Bak berisi fluida dan benda">' +
@@ -223,7 +241,7 @@ function build(id) {
     '<p class="leg" style="margin:6px 0 0"><i style="background:var(--fa)"></i>Gaya apung (F<sub>A</sub>) &nbsp; <i style="background:var(--w)"></i>Berat benda (W)</p></div>' +
     '<div class="card"><h2>Pengaturan Variabel</h2>' + controlsHtml +
     '<h2 style="margin-top:12px">Data Pengamatan Saat Ini</h2><div class="data" id="dt"></div><div class="cond" id="cd"></div></div></div>' +
-    '<div class="card" style="margin-top:12px"><h2>Tabel Hasil Pengamatan (4 Variasi)</h2><div class="tw"><table><thead><tr>' +
+    '<div class="card" style="margin-top:12px"><h2>Tabel Hasil Pengamatan (3 Variasi)</h2><div class="tw"><table><thead><tr>' +
     cols.map(function (x) { return "<th>" + x + "</th>"; }).join("") +
     '</tr></thead><tbody id="tb"></tbody></table></div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="p" id="rc">Catat Data</button><button type="button" id="cp">Salin Tabel</button><button type="button" id="rs">Reset Tabel</button></div>' +
@@ -241,7 +259,7 @@ function render(id) {
   e("fl").setAttribute("opacity", ".85");
   e("bx").setAttribute("fill", objColor(s.rb));
 
-  // Sesuaikan ukuran visual kotak benda berdasarkan volume (antara 44px hingga 72px)
+  // Sesuaikan ukuran visual kotak benda berdasarkan volume (antara 48px hingga 72px)
   var boxSize = Math.round(40 + st.vL * 8);
   var boxX = 160 - boxSize / 2;
   e("bx").setAttribute("x", boxX);
@@ -274,18 +292,21 @@ function render(id) {
     var flObj = FLUIDS.filter(function (f) { return f.rf === st.rf; })[0];
     e("k1-fl-val").textContent = (flObj ? flObj.name + " — " : "") + fmt(st.rf, 0) + " kg/m³";
     e("k1-m-val").textContent = fmt(st.m, 1) + " kg";
-    e("k1-v-val").textContent = fmt(st.vL, 1) + " L (" + fmt(s.V, 4) + " m³)";
+    e("k1-v-val").textContent = fmt(st.vL, 1) + " L (" + fmtV(s.V) + " m³)";
     Array.prototype.forEach.call(document.querySelectorAll(".fl-btn"), function (b) {
       b.className = "fl-btn" + (+b.dataset.rf === st.rf ? " active-btn" : "");
     });
   } else {
     e("k2-rf-val").textContent = fmt(st.rf, 0) + " kg/m³";
+    Array.prototype.forEach.call(document.querySelectorAll(".rf-btn"), function (b) {
+      b.className = "rf-btn" + (+b.dataset.v === st.rf ? " active-btn" : "");
+    });
     var btnSub = e("btn-submerge");
     if (st.submerged) {
       btnSub.textContent = "Benda Tercelup Seluruhnya (Klik untuk Angkat)";
       btnSub.className = "sub-btn active-btn";
     } else {
-      btnSub.textContent = "⬇Celupkan Benda Seluruhnya ke Fluida";
+      btnSub.textContent = "⬇ Celupkan Benda Seluruhnya ke Fluida";
       btnSub.className = "p sub-btn";
     }
   }
@@ -293,10 +314,10 @@ function render(id) {
   // Update panel data pengamatan
   e("dt").innerHTML = [
     ["Massa benda (m)", fmt(s.m, 1) + " kg"],
-    ["Volume benda (V)", fmt(s.V, 4) + " m³ (" + fmt(s.vL, 1) + " L)"],
+    ["Volume benda (V)", fmtV(s.V) + " m³ (" + fmt(s.vL, 1) + " L)"],
     ["Massa jenis benda (ρ<sub>b</sub>)", fmt(s.rb, 0) + " kg/m³"],
     ["Massa jenis fluida (ρ<sub>f</sub>)", fmt(s.rf, 0) + " kg/m³"],
-    ["Volume tercelup (V<sub>t</sub>)", fmt(s.Vt, 4) + " m³ (" + fmt(s.Vt * 1000, 2) + " L)"],
+    ["Volume tercelup (V<sub>t</sub>)", fmtV(s.Vt) + " m³ (" + fmt(s.Vt * 1000, 2) + " L)"],
     ["Gaya apung (F<sub>A</sub>)", fmt(s.FA, 2) + " N"],
     ["Berat benda (W)", fmt(s.W, 2) + " N"]
   ].map(function (r) {
@@ -306,14 +327,14 @@ function render(id) {
   e("cd").textContent = "Kondisi benda: " + s.cond;
   STATE[id].last = s;
 
-  // Render tabel 4 baris
-  var colCount = 4;
+  // Render tabel hasil (maksimal 3 baris)
+  var colCount = COLS_HTML[id].length;
   var tb = REC[id].map(function (r, i) {
     return "<tr><td>" + (i + 1) + "</td>" + r.map(function (x) { return "<td>" + x + "</td>"; }).join("") + "</tr>";
   }).join("");
-  e("tb").innerHTML = tb || '<tr><td colspan="' + colCount + '" style="color:var(--mu)">Belum ada data tercatat (maksimal 4 variasi)</td></tr>';
+  e("tb").innerHTML = tb || '<tr><td colspan="' + colCount + '" style="color:var(--mu)">Belum ada data tercatat (maksimal 3 variasi)</td></tr>';
 
-  // Tombol catat aktif jika belum mencapai 4 variasi (dan pada K2 benda harus sudah dicelupkan)
+  // Tombol catat aktif jika belum mencapai 3 variasi (dan pada K2 benda harus sudah dicelupkan)
   var disableRecord = REC[id].length >= MAX_ROWS || (id === "k2" && !st.submerged);
   e("rc").disabled = disableRecord;
 }
@@ -369,7 +390,7 @@ function wire(id) {
 
   e("ck").onchange = function () { render(id); };
 
-  // Catat data ke tabel (4 variasi)
+  // Catat data ke tabel (3 variasi)
   e("rc").onclick = function () {
     if (REC[id].length >= MAX_ROWS) return;
     if (id === "k2" && !st.submerged) {
@@ -378,8 +399,8 @@ function wire(id) {
     }
     var s = st.last;
     var rowData = (id === "k1")
-      ? [fmt(s.rb, 0), fmt(s.rf, 0), s.cond]
-      : [fmt(s.rf, 0), fmt(s.Vt, 4), fmt(s.FA, 2)];
+      ? [fmt(s.rb, 0), fmt(s.rf, 0), fmt(s.FA, 2), fmt(s.W, 2), s.cond]
+      : [fmt(s.rf, 0), fmtV(s.Vt), fmt(s.FA, 2)];
 
     REC[id].push(rowData);
     render(id);
@@ -387,7 +408,7 @@ function wire(id) {
     if (REC[id].length < MAX_ROWS) {
       say("Variasi ke-" + REC[id].length + " tercatat. Ubah variabel untuk variasi berikutnya (sisa " + (MAX_ROWS - REC[id].length) + " variasi).");
     } else {
-      say("Keempat variasi sudah tercatat lengkap di tabel!");
+      say("Ketiga variasi sudah tercatat lengkap di tabel!");
     }
   };
 
@@ -404,10 +425,7 @@ function wire(id) {
       say("Tabel masih kosong. Catat minimal 1 variasi terlebih dahulu.", true);
       return;
     }
-    var headers = (id === "k1")
-      ? ["Variasi", "Massa jenis benda (kg/m³)", "Massa jenis fluida (kg/m³)", "Kondisi"]
-      : ["Variasi", "Massa jenis fluida (kg/m³)", "Volume tercelup (m³)", "Gaya apung (N)"];
-    var text = headers.join("\t") + "\n" + REC[id].map(function (r, i) {
+    var text = COLS_TEXT[id].join("\t") + "\n" + REC[id].map(function (r, i) {
       return [i + 1].concat(r).join("\t");
     }).join("\n");
 
